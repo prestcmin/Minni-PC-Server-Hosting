@@ -1,0 +1,24 @@
+# Environment files and secrets
+.env
+.env.*
+*.env
+!*.env.example
+
+# Ansible secrets
+vault.yml
+vault.yaml
+*.vault
+.vault-password
+
+# Ansible generated files
+*.retry
+collections/
+
+# Python files
+__pycache__/
+*.pyc
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/

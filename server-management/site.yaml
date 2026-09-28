@@ -1,0 +1,6 @@
+---
+- name: Deploy game server
+  hosts: docker_hosts
+
+  roles:
+    - role: game_server

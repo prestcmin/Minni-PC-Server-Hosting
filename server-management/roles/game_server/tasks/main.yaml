@@ -1,0 +1,60 @@
+---
+- name: Validate selected game
+  ansible.builtin.assert:
+    that:
+      - game_type in game_definitions
+      - server_action in compose_states
+    fail_msg: >-
+      game_type must be one of {{ game_definitions.keys() | list | join(', ') }},
+      and server_action must be one of deploy, stop, or remove.
+
+- name: Verify Docker is available
+  ansible.builtin.command:
+    cmd: docker version
+  changed_when: false
+
+- name: Verify Docker Compose is available
+  ansible.builtin.command:
+    cmd: docker compose version
+  changed_when: false
+
+- name: Create game project directory
+  ansible.builtin.file:
+    path: "{{ game_project_dir }}"
+    state: directory
+    mode: "0755"
+  when: server_action == "deploy"
+
+- name: Copy selected Compose file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/game-configs/{{ selected_game.compose_file }}"
+    dest: "{{ game_project_dir }}/compose.yaml"
+    mode: "0644"
+  when: server_action == "deploy"
+
+- name: Copy selected environment file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/game-configs/{{ selected_game.env_file }}"
+    dest: "{{ game_project_dir }}/.env"
+    mode: "0600"
+  when:
+    - server_action == "deploy"
+    - selected_game.env_file | length > 0
+  no_log: true
+
+- name: Apply requested server action
+  community.docker.docker_compose_v2:
+    project_src: "{{ game_project_dir }}"
+    project_name: "{{ game_type }}"
+    state: "{{ compose_states[server_action] }}"
+    pull: missing
+    wait: false
+    remove_volumes: "{{ delete_volumes }}"
+  register: compose_result
+
+- name: Display action result
+  ansible.builtin.debug:
+    msg:
+      action: "{{ server_action }}"
+      game: "{{ game_type }}"
+      changed: "{{ compose_result.changed }}"

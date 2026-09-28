@@ -1,0 +1,12 @@
+services:
+  terraria-docker:
+    image: passivelemon/terraria-docker:terraria-latest
+    container_name: ${SERVER_NAME:-terraria-vanilla}
+    ports:
+      - ${PORT_NUMBER:-7777}:7777
+    environment:
+      AUTOCREATE: "${WORLD_SIZE:-2}"
+      WORLD: "${WORLD_NAME:-world}"
+      WORLDNAME: "${WORLD_NAME:-world}"
+    volumes:
+      - /mnt/detach/terraria/config:/opt/terraria/config
