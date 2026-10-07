@@ -1,0 +1,8 @@
+services:
+  playit-agent:
+    image: ghcr.io/playit-cloud/playit-agent:latest
+    container_name: playit-agent
+    network_mode: host
+    env_file:
+      - ../playit.env
+    restart: unless-stopped

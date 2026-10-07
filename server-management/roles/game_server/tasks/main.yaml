@@ -2,11 +2,11 @@
 - name: Validate selected game
   ansible.builtin.assert:
     that:
-      - game_type in game_definitions
+      - game_type in game_configs
       - server_action in compose_states
     fail_msg: >-
-      game_type must be one of {{ game_definitions.keys() | list | join(', ') }},
-      and server_action must be one of deploy, stop, or remove.
+      game_type must be one of {{ game_configs.keys() | list | join(', ') }},
+      and server_action must be one of deploy, stop, start, restart, or remove.
 
 - name: Verify Docker is available
   ansible.builtin.command:
@@ -18,6 +18,10 @@
     cmd: docker compose version
   changed_when: false
 
+- name: Select game configuration
+  ansible.builtin.set_fact:
+    selected_game_config: "{{ game_configs[selected_game] }}"
+
 - name: Create game project directory
   ansible.builtin.file:
     path: "{{ game_project_dir }}"
@@ -27,20 +31,16 @@
 
 - name: Copy selected Compose file
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/game-configs/{{ selected_game.compose_file }}"
+    src: "{{ playbook_dir }}/game-configs/{{ selected_game_config.compose_file }}"
     dest: "{{ game_project_dir }}/compose.yaml"
-    mode: "0644"
-  when: server_action == "deploy"
 
 - name: Copy selected environment file
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/game-configs/{{ selected_game.env_file }}"
+    src: "{{ playbook_dir }}/game-configs/{{ selected_game_config.env_file }}"
     dest: "{{ game_project_dir }}/.env"
-    mode: "0600"
   when:
     - server_action == "deploy"
-    - selected_game.env_file | length > 0
-  no_log: true
+    - selected_game_config.env_file | default('') | length > 0
 
 - name: Apply requested server action
   community.docker.docker_compose_v2:

@@ -3,7 +3,7 @@ game_type: terraria
 
 server_install_root: "{{ ansible_env.HOME }}/server-management"
 
-game_definitions:
+game_configs:
   minecraft:
     compose_file: minecraft/minecraft_vanilla.yaml
     env_file: minecraft/minecraft_vanilla.env
@@ -16,7 +16,7 @@ game_definitions:
     compose_file: valheim/valheim.yaml
     env_file: ""
 
-selected_game: "{{ game_definitions[game_type] }}"
+selected_game: "{{ game_configs[game_type] }}"
 
 game_project_dir: "{{ server_install_root }}/{{ game_type }}"
 
@@ -25,5 +25,7 @@ delete_volumes: false
 
 compose_states:
   deploy: present
+  start: present
   stop: stopped
+  restart: restarted
   remove: absent
