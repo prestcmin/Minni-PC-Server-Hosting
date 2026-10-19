@@ -22,3 +22,12 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Backend Files
+backend/servers.db
+backend/*.db
+
+#Frontend Files
+frontend/.env
+frontend/node_modules/
+frontend/dist/
