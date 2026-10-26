@@ -40,6 +40,9 @@ export function getHealth() {
   return request("/health");
 }
 
+export function listServers() {
+  return request("/servers");
+}
 
 export function deployServer(server) {
   return request(
@@ -53,11 +56,12 @@ export function deployServer(server) {
         port_number: server.port_number,
         world_name: server.world_name,
         world_size: server.world_size,
+        difficulty: server.difficulty,
+        valheim_modifier: server.valheim_modifier,
       }),
     },
   );
 }
-
 
 export function startServer(server) {
   return request(

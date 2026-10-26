@@ -11,15 +11,16 @@ class AnsibleResult:
     stdout: str
     stderr: str
 
-
 def run_ansible(
-    action: str,
-    game: str,
-    server_name: str,
-    port_number: int,
-    world_name: str | None = None,
-    world_size: int | None = None,
-) -> AnsibleResult:
+    action,
+    game,
+    server_name,
+    port_number,
+    world_name=None,
+    world_size=None,
+    difficulty=None,
+    valheim_modifier=None,
+):
     command = [
         "ansible-playbook",
         "-i",
@@ -36,20 +37,28 @@ def run_ansible(
     ]
 
     if world_name is not None:
-        command.extend(
-            [
-                "-e",
-                f"world_name={world_name}",
-            ]
-        )
+        command.extend([
+            "-e",
+            f"world_name={world_name}",
+        ])
 
     if world_size is not None:
-        command.extend(
-            [
-                "-e",
-                f"world_size={world_size}",
-            ]
-        )
+        command.extend([
+            "-e",
+            f"world_size={world_size}",
+        ])
+
+    if difficulty is not None:
+        command.extend([
+            "-e",
+            f"difficulty={difficulty}",
+        ])
+
+    if valheim_modifier is not None:
+        command.extend([
+            "-e",
+            f"valheim_modifier={valheim_modifier}",
+        ])
 
     try:
         result = subprocess.run(
@@ -67,9 +76,7 @@ def run_ansible(
             success=False,
             return_code=124,
             stdout=error.stdout or "",
-            stderr=(
-                "Ansible operation exceeded the configured timeout."
-            ),
+            stderr="Ansible operation timed out.",
         )
 
     except OSError as error:
@@ -77,9 +84,7 @@ def run_ansible(
             success=False,
             return_code=1,
             stdout="",
-            stderr=(
-                f"Unable to start Ansible: {error}"
-            ),
+            stderr=f"Unable to start Ansible: {error}",
         )
 
     return AnsibleResult(

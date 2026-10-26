@@ -46,3 +46,6 @@ class ServerRequest(BaseModel):
         ge=1,
         le=3,
     )
+    difficulty: str | None = None
+
+    valheim_modifier: str | None = None

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    frontend_origin: str = "http://192.168.0.132:5173"
+
     @property
     def inventory_path(self) -> Path:
         return self.ansible_project_dir / self.ansible_inventory
