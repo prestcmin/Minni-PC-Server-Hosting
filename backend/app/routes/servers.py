@@ -125,6 +125,7 @@ def perform_server_action(
     return {
         "success": True,
         "server": serialize_server(server),
+	"action": action,
         "message": "Server action completed successfully.",
     }
 
@@ -173,7 +174,7 @@ def stop_server(
 def restart_server(
     server_id: str,
     request: ServerRequest,
-    database: Session = Depends(get_db),
+    daatabase: Session = Depends(get_db),
 ):
     return perform_server_action(
         request=request,
@@ -182,16 +183,38 @@ def restart_server(
         database=database,
     )
 
-
 @router.delete("/{server_id}")
-def remove_server(
+def delete_server(
     server_id: str,
-    request: ServerRequest,
     database: Session = Depends(get_db),
 ):
-    return perform_server_action(
-        request=request,
-        server_id=server_id,
-        action="remove",
-        database=database,
-    )
+    server = database.get(Server, server_id)
+
+    if server is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Server not found",
+        )
+
+    result = run_ansible(
+    	action="remove",
+    	game=server.game,
+    	server_name=server.server_name,
+    	port_number=server.port_number,
+    	world_name=server.world_name,
+    	world_size=server.world_size,
+    	difficulty=server.difficulty,
+	valheim_modifier=server.valheim_modifier,
+ )
+
+    # Delete the database record even if the container is already missing.
+    database.delete(server)
+    database.commit()
+
+    return {
+        "success": True,
+        "server_name": server.server_name,
+        "action": "remove",
+        "container_removed": result.success,
+        "cleanup_error": None if result.success else result.stderr,
+    }

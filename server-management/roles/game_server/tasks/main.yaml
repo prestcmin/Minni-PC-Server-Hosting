@@ -1,12 +1,24 @@
 ---
+- name: Determine requested game
+  ansible.builtin.set_fact:
+    effective_game_type: "{{ selected_game | default(game_type, true) }}"
+
 - name: Validate selected game
   ansible.builtin.assert:
     that:
-      - game_type in game_configs
+      - effective_game_type in game_configs
       - server_action in compose_states
     fail_msg: >-
-      game_type must be one of {{ game_configs.keys() | list | join(', ') }},
-      and server_action must be one of deploy, stop, start, restart, or remove.
+      Game must be one of {{ game_configs.keys() | list | join(', ') }},
+      and action must be one of deploy, stop, start, restart, or remove.
+
+- name: Select game configuration
+  ansible.builtin.set_fact:
+    selected_game_config: "{{ game_configs[effective_game_type] }}"
+
+- name: Set server project directory
+  ansible.builtin.set_fact:
+    game_project_dir: "{{ server_install_root }}/{{ server_name }}"
 
 - name: Verify Docker is available
   ansible.builtin.command:
@@ -18,34 +30,46 @@
     cmd: docker compose version
   changed_when: false
 
-- name: Select game configuration
-  ansible.builtin.set_fact:
-    selected_game_config: "{{ game_configs[selected_game] }}"
-
-- name: Create game project directory
+- name: Create server project directory
   ansible.builtin.file:
     path: "{{ game_project_dir }}"
     state: directory
     mode: "0755"
-  when: server_action == "deploy"
+  when: server_action in ["deploy", "start", "stop", "restart"]
 
 - name: Copy selected Compose file
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/game-configs/{{ selected_game_config.compose_file }}"
     dest: "{{ game_project_dir }}/compose.yaml"
+    mode: "0644"
+  when: server_action in ["deploy", "start", "stop", "restart"]
 
 - name: Copy selected environment file
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/game-configs/{{ selected_game_config.env_file }}"
     dest: "{{ game_project_dir }}/.env"
+    mode: "0600"
   when:
-    - server_action == "deploy"
+    - server_action in ["deploy", "start", "stop", "restart"]
     - selected_game_config.env_file | default('') | length > 0
+
+- name: Create Valheim environment file
+  ansible.builtin.copy:
+    dest: "{{ game_project_dir }}/.env"
+    mode: "0600"
+    content: |
+      SERVER_NAME={{ server_name }}
+      PORT_NUMBER={{ port_number }}
+      WORLD_NAME={{ world_name | default('Dedicated') }}
+      VALHEIM_MODIFIER={{ valheim_modifier | default('normal') }}
+  when:
+    - effective_game_type == "valheim"
+    - server_action in ["deploy", "start", "stop", "restart"]
 
 - name: Apply requested server action
   community.docker.docker_compose_v2:
     project_src: "{{ game_project_dir }}"
-    project_name: "{{ game_type }}"
+    project_name: "{{ server_name }}"
     state: "{{ compose_states[server_action] }}"
     pull: missing
     wait: false
@@ -56,5 +80,6 @@
   ansible.builtin.debug:
     msg:
       action: "{{ server_action }}"
-      game: "{{ game_type }}"
+      game: "{{ effective_game_type }}"
+      server_name: "{{ server_name }}"
       changed: "{{ compose_result.changed }}"
