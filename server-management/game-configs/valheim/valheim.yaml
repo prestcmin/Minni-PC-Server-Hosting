@@ -1,0 +1,17 @@
+services:
+  valheim:
+    image: lloesche/valheim-server:latest
+    container_name: ${SERVER_NAME:?SERVER_NAME must be set}
+    restart: unless-stopped
+
+    cap_add:
+      - sys_nice
+
+    ports:
+      - "2456-2458:2456-2458/udp"
+
+    env_file:
+      - .env
+
+    volumes:
+      - "/mnt/detach/valheim/data/${SERVER_NAME}:/config"

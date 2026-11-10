@@ -170,7 +170,7 @@ function App() {
   const [servers, setServers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [activeActions, setActiveActions] = useState({});
 
   async function refreshServers() {
     setError("");
@@ -291,22 +291,17 @@ function App() {
                   </button>
                 </div>
 
-                <ServerList
-                  servers={servers}
-                  loading={loading}
-                  error={error}
-                  onRefresh={refreshServers}
-                  onStart={(server) =>
-                    performAction(server, startServer)
-                  }
-                  onStop={(server) =>
-                    performAction(server, stopServer)
-                  }
-                  onRestart={(server) =>
-                    performAction(server, restartServer)
-                  }
-                  onRemove={handleRemove}
-                />
+		<ServerList
+		  servers={servers}
+		  loading={loading}
+		  error={error}
+		  onRefresh={refreshServers}
+		  activeActions={activeActions}
+		  onStart={(server) => handleAction("start", server)}
+		  onStop={(server) => handleAction("stop", server)}
+		  onRestart={(server) => handleAction("restart", server)}
+		  onRemove={(server) => handleAction("remove", server)}
+		/>
               </section>
             </>
           )}
@@ -331,8 +326,10 @@ function App() {
               </div>
 
               <CreateServerForm
-                onCreated={handleCreated}
-              />
+ 		 onCreated={() => {
+  		  refreshServers();
+ 		 }}
+		/>
             </>
           )}
 
@@ -355,5 +352,43 @@ function App() {
   );
 }
 
+async function refreshServers() {
+  setLoading(true);
+  setError("");
+
+  try {
+    const data = await listServers();
+    setServers(data);
+  } catch (requestError) {
+    setError(requestError.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleAction(action, server) {
+  const actionKey = `${server.server_name}-${action}`;
+
+  setActiveActions((current) => ({
+    ...current,
+    [actionKey]: true,
+  }));
+
+  try {
+    if (action === "start") await startServer(server);
+    if (action === "stop") await stopServer(server);
+    if (action === "restart") await restartServer(server);
+    if (action === "remove") await removeServer(server);
+
+    await refreshServers();
+  } catch (requestError) {
+    setError(requestError.message);
+  } finally {
+    setActiveActions((current) => ({
+      ...current,
+      [actionKey]: false,
+    }));
+  }
+}
 
 export default App;

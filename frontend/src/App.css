@@ -221,6 +221,24 @@ button {
   font-size: 0.8rem;
 }
 
+.status-running {
+  color: var(--deep-sky-blue);
+}
+
+.status-stopped,
+.status-unknown {
+  color: var(--alice-blue);
+}
+
+.status-deploying {
+  color: var(--deep-sky-blue);
+}
+
+.status-failed,
+.error-state {
+  color: var(--grapefruit-pink);
+}
+
 .server-actions {
   display: flex;
   flex-wrap: wrap;

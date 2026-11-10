@@ -37,12 +37,27 @@
     mode: "0755"
   when: server_action in ["deploy", "start", "stop", "restart"]
 
+- name: Create Terraria world directory
+  ansible.builtin.file:
+    path: "/mnt/detach/terraria/data/{{ server_name }}/Worlds"
+    state: directory
+    mode: "0755"
+  when:
+    - effective_game_type == "terraria"
+    - server_action in ["deploy", "start", "restart"]
+
 - name: Copy selected Compose file
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/game-configs/{{ selected_game_config.compose_file }}"
     dest: "{{ game_project_dir }}/compose.yaml"
     mode: "0644"
   when: server_action in ["deploy", "start", "stop", "restart"]
+
+- name: Convert Terraria difficulty
+  ansible.builtin.set_fact:
+    terraria_difficulty_id: >-
+      {{ terraria_difficulty_ids[difficulty | default('classic')] }}
+  when: effective_game_type == "terraria"
 
 - name: Copy selected environment file
   ansible.builtin.copy:
@@ -53,15 +68,79 @@
     - server_action in ["deploy", "start", "stop", "restart"]
     - selected_game_config.env_file | default('') | length > 0
 
+- name: Set submitted server name
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^SERVER_NAME="
+    line: "SERVER_NAME={{ server_name }}"
+    create: true
+    mode: "0600"
+
+- name: Set submitted server port
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^PORT_NUMBER="
+    line: "PORT_NUMBER={{ port_number }}"
+    create: true
+    mode: "0600"
+
+- name: Set Terraria world name
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^WORLD_NAME="
+    line: "WORLD_NAME={{ world_name }}"
+    create: true
+    mode: "0600"
+  when:
+    - effective_game_type == "terraria"
+    - world_name is defined
+    - world_name | length > 0
+
+- name: Set Terraria world size
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^WORLD_SIZE="
+    line: "WORLD_SIZE={{ world_size }}"
+    create: true
+    mode: "0600"
+  when:
+    - effective_game_type == "terraria"
+    - world_size is defined
+
+- name: Set Terraria difficulty
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^DIFFICULTY_ID="
+    line: "DIFFICULTY_ID={{ terraria_difficulty_id }}"
+    create: true
+    mode: "0600"
+  when:
+    - effective_game_type == "terraria"
+    - terraria_difficulty_id is defined
+
+- name: Set Minecraft world name
+  ansible.builtin.lineinfile:
+    path: "{{ game_project_dir }}/.env"
+    regexp: "^LEVEL="
+    line: "LEVEL={{ world_name }}"
+    create: true
+    mode: "0600"
+  when:
+    - effective_game_type == "minecraft"
+    - world_name is defined
+    - world_name | length > 0
+
 - name: Create Valheim environment file
   ansible.builtin.copy:
     dest: "{{ game_project_dir }}/.env"
     mode: "0600"
     content: |
       SERVER_NAME={{ server_name }}
-      PORT_NUMBER={{ port_number }}
-      WORLD_NAME={{ world_name | default('Dedicated') }}
-      VALHEIM_MODIFIER={{ valheim_modifier | default('normal') }}
+      WORLD_NAME={{ world_name | default('Dedicated', true) }}
+      SERVER_PORT={{ port_number | default(2456, true) }}
+      SERVER_PUBLIC=1
+      SERVER_PASS={{ valheim_server_password }}
+      VALHEIM_MODIFIER={{ valheim_modifier | default('normal', true) }}
   when:
     - effective_game_type == "valheim"
     - server_action in ["deploy", "start", "stop", "restart"]

@@ -1,3 +1,5 @@
+import ServerStatusBadge from "./ServerStatusBadge";
+
 function ServerList({
   servers = [],
   loading,
@@ -7,7 +9,12 @@ function ServerList({
   onStop,
   onRestart,
   onRemove,
+  activeActions = {},
 }) {
+  function isActive(action, server) {
+    return activeActions[`${server.server_name}-${action}`];
+  }
+
   if (loading) {
     return (
       <p className="loading">
@@ -58,39 +65,41 @@ function ServerList({
               {server.game} · Port {server.port_number}
             </p>
 
-            <span className="server-status">
-              {server.status || "unknown"}
-            </span>
+            <ServerStatusBadge status={server.status} />
           </div>
 
           <div className="server-actions">
-            <button
-              className="secondary-button"
-              onClick={() => onStart(server)}
-            >
-              Start
-            </button>
+	       <button
+		  className="secondary-button"
+		  disabled={isActive("start", server)}
+		  onClick={() => onStart(server)}
+		>
+		  {isActive("start", server) ? "Starting..." : "Start"}
+		</button>
 
-            <button
-              className="secondary-button"
-              onClick={() => onStop(server)}
-            >
-              Stop
-            </button>
+		<button
+		  className="secondary-button"
+		  disabled={isActive("stop", server)}
+		  onClick={() => onStop(server)}
+		>
+		  {isActive("stop", server) ? "Stopping..." : "Stop"}
+		</button>
 
-            <button
-              className="secondary-button"
-              onClick={() => onRestart(server)}
-            >
-              Restart
-            </button>
+		<button
+		  className="secondary-button"
+		  disabled={isActive("restart", server)}
+		  onClick={() => onRestart(server)}
+		>
+		  {isActive("restart", server) ? "Restarting..." : "Restart"}
+		</button>
 
-            <button
-              className="secondary-button"
-              onClick={() => onRemove(server)}
-            >
-              Remove
-            </button>
+		<button
+		  className="secondary-button"
+		  disabled={isActive("remove", server)}
+		  onClick={() => onRemove(server)}
+		>
+		  {isActive("remove", server) ? "Removing..." : "Remove"}
+		</button>
           </div>
         </article>
       ))}

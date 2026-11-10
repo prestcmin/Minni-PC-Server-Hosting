@@ -1,19 +1,31 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "http://192.168.1.134:8001";
+  `${window.location.protocol}//${window.location.hostname}:8001`;
 
+export class ApiError extends Error {
+  constructor(message, status = 0) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function request(path, options = {}) {
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    {
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
         ...(options.headers || {}),
       },
       ...options,
-    },
-  );
+    });
+  } catch {
+    throw new ApiError(
+      "The backend could not be reached. Check that it is running and accessible."
+    );
+  }
 
   let data = null;
 
@@ -24,17 +36,16 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message =
+    throw new ApiError(
       data?.detail?.message ||
-      data?.detail ||
-      "The backend request failed.";
-
-    throw new Error(message);
+        data?.detail ||
+        `The backend returned HTTP ${response.status}.`,
+      response.status
+    );
   }
 
   return data;
 }
-
 
 export function getHealth() {
   return request("/health");

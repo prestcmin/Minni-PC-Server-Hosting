@@ -9,6 +9,7 @@ vault.yml
 vault.yaml
 *.vault
 .vault-password
+server-management/group_vars/localhost/vault.yaml
 
 # Ansible generated files
 *.retry
@@ -31,3 +32,6 @@ backend/*.db
 frontend/.env
 frontend/node_modules/
 frontend/dist/
+
+#Backups
+backups/

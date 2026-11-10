@@ -2,6 +2,11 @@ import { useState } from "react";
 
 import { deployServer } from "../services/api";
 
+const DEFAULT_PORTS = {
+  minecraft: 25565,
+  terraria: 7777,
+  valheim: 2456,
+};
 
 const initialForm = {
   game: "terraria",
@@ -35,27 +40,28 @@ function CreateServerForm({ onCreated }) {
 
 
   function updateGame(event) {
-    const game = event.target.value;
+  const game = event.target.value;
 
-    setForm((current) => ({
-      ...current,
-      game,
-      difficulty:
-        game === "terraria"
-          ? "classic"
-          : game === "minecraft"
-            ? "normal"
-            : "normal",
-      world_size:
-        game === "terraria"
-          ? 2
-          : undefined,
-      valheim_modifier:
-        game === "valheim"
+  setForm((current) => ({
+    ...current,
+    game,
+    port_number: DEFAULT_PORTS[game],
+    difficulty:
+      game === "terraria"
+        ? "classic"
+        : game === "minecraft"
           ? "normal"
-          : undefined,
-    }));
-  }
+          : "normal",
+    world_size:
+      game === "terraria"
+        ? 2
+        : undefined,
+    valheim_modifier:
+      game === "valheim"
+        ? "normal"
+        : undefined,
+  }));
+}
 
 
   async function handleSubmit(event) {
@@ -79,11 +85,7 @@ function CreateServerForm({ onCreated }) {
 
       setSuccess("Server deployed successfully.");
 
-      onCreated({
-        ...form,
-        ...result,
-        status: "running",
-      });
+      onCreated(result.server || result);
 
       setForm(initialForm);
     } catch (requestError) {
@@ -95,7 +97,8 @@ function CreateServerForm({ onCreated }) {
 
 
   return (
-    <form className="form-panel" onSubmit={handleSubmit}>
+    <form
+  className="form-panel" onSubmit={handleSubmit} noValidate>
       <div className="panel-header">
         <div>
           <h3>Create a server</h3>
