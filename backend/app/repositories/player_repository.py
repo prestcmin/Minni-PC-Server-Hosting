@@ -77,3 +77,15 @@ def record_player_seen(
     database.refresh(server_player)
 
     return server_player
+
+def list_for_server(
+    database: Session,
+    server_id: int,
+) -> list[ServerPlayer]:
+    return list(
+        database.scalars(
+            select(ServerPlayer)
+            .where(ServerPlayer.server_id == server_id)
+            .order_by(ServerPlayer.last_seen_at.desc())
+        ).all()
+    )

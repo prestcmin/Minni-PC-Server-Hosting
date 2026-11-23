@@ -5,6 +5,7 @@ function ServerList({
   loading,
   error,
   onRefresh,
+  onOpen = () => {},
   onStart,
   onStop,
   onRestart,
@@ -46,7 +47,7 @@ function ServerList({
         <h3>No servers deployed</h3>
         <p>Create a server to begin managing your hosting environment.</p>
       </div>
-    );
+    );F
   }
 
   return (
@@ -69,7 +70,15 @@ function ServerList({
           </div>
 
           <div className="server-actions">
-	       <button
+	       
+                <button
+                  className="secondary-button"
+                  onClick={() => onOpen(server)}
+                >
+                Details
+                </button>
+
+                <button
 		  className="secondary-button"
 		  disabled={isActive("start", server)}
 		  onClick={() => onStart(server)}

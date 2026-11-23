@@ -9,9 +9,11 @@ from ..database import get_db
 from ..models.database import Game, Server, World
 from ..models.server import ServerRequest
 from ..models.player import PlayerSeenRequest
+from ..repositories import player_repository
 from ..repositories.player_repository import record_player_seen
 from ..services.ansible_service import run_ansible
 from ..services.docker_service import reconcile_servers
+from ..services.docker_metrics_service import ( collect_container_metrics, )
 
 router = APIRouter(
     prefix="/servers",
@@ -61,6 +63,87 @@ def record_player(
         },
     }
 
+@router.get("/{server_id}/world")
+def get_server_world(
+    server_id: str,
+    database: Session = Depends(get_db),
+):
+    server = get_server_by_name(database, server_id)
+
+    if server is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Server was not found.",
+        )
+
+    world = world_repository.get_active_for_server(
+        database,
+        server.id,
+    )
+
+    if world is None:
+        return {
+            "server_id": server.id,
+            "server_name": server.server_name,
+            "world": None,
+        }
+
+    return {
+        "server_id": server.id,
+        "server_name": server.server_name,
+        "world": {
+            "id": world.id,
+            "world_name": world.world_name,
+            "world_path": world.world_path,
+            "world_size": world.world_size,
+            "difficulty": world.difficulty,
+            "valheim_modifier": world.valheim_modifier,
+            "seed": world.seed,
+            "is_active": world.is_active,
+        },
+    }
+
+@router.get("/{server_id}/players")
+def list_players(
+    server_id: str,
+    database: Session = Depends(get_db),
+):
+    server = get_server_by_name(database, server_id)
+
+    if server is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Server was not found.",
+        )
+
+    server_players = player_repository.list_for_server(
+        database,
+        server.id,
+    )
+
+    return {
+        "server_id": server.id,
+        "server_name": server.server_name,
+        "players": [
+            {
+                "id": server_player.player.id,
+                "player_uuid": server_player.player.player_uuid,
+                "display_name": server_player.player.display_name,
+                "first_joined_at": (
+                    server_player.first_joined_at
+                ),
+                "last_seen_at": server_player.last_seen_at,
+                "total_playtime_seconds": (
+                    server_player.total_playtime_seconds
+                ),
+                "join_count": server_player.join_count,
+                "is_active": server_player.is_active,
+            }
+            for server_player in server_players
+        ],
+        "player_count": len(server_players),
+    }
+
 @router.get("")
 def list_servers(
     database: Session = Depends(get_db),
@@ -74,6 +157,40 @@ def list_servers(
         for server in servers
     ]
 
+@router.get("/{server_id}/events")
+def list_server_events(
+    server_id: str,
+    database: Session = Depends(get_db),
+):
+    server = get_server_by_name(database, server_id)
+
+    if server is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Server was not found.",
+        )
+
+    events = event_repository.list_for_server(
+        database,
+        server.id,
+    )
+
+    return {
+        "server_id": server.id,
+        "server_name": server.server_name,
+        "events": [
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "status": event.status,
+                "message": event.message,
+                "return_code": event.return_code,
+                "created_at": event.created_at,
+            }
+            for event in events
+        ],
+    }
+
 def serialize_server(server: Server) -> dict:
     return {
         "id": server.id,
@@ -84,6 +201,64 @@ def serialize_server(server: Server) -> dict:
         "compose_project": server.compose_project,
         "status": server.status,
         "last_error": server.last_error,
+        "last_started_at": server.last_started_at,
+        "last_stopped_at": server.last_stopped_at,
+    }
+
+def get_cleanup_error(result) -> str | None:
+    if result.success:
+        return None
+
+    output = "\n".join(
+        line
+        for line in (
+            result.stderr + "\n" + result.stdout
+        ).splitlines()
+        if not line.startswith("[WARNING]")
+    ).strip()
+
+    return output[-2000:] if output else None
+
+@router.get("/{server_id}/metrics")
+def server_metrics(
+    server_id: str,
+    database: Session = Depends(get_db),
+):
+    server = get_server_by_name(database, server_id)
+
+    if server is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Server was not found.",
+        )
+
+    try:
+        metrics = collect_container_metrics(
+            server.container_name
+        )
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Server metrics are unavailable.",
+                "code": "METRICS_UNAVAILABLE",
+                "error": str(error),
+            },
+        ) from error
+
+    return {
+        "server_id": server.id,
+        "server_name": server.server_name,
+        "container_name": server.container_name,
+        "status": metrics["status"],
+        "uptime_seconds": metrics["uptime_seconds"],
+        "cpu_percent": metrics["cpu_percent"],
+        "memory_usage_bytes": metrics["memory_usage_bytes"],
+        "memory_limit_bytes": metrics["memory_limit_bytes"],
+        "memory_percent": metrics["memory_percent"],
+        "network_rx_bytes": metrics["network_rx_bytes"],
+        "network_tx_bytes": metrics["network_tx_bytes"],
+        "collected_at": datetime.now(timezone.utc),
     }
 
 def perform_server_action(
@@ -218,10 +393,14 @@ def perform_server_action(
             "action": action,
         }
 
+    now = datetime.now(timezone.utc)
+
     if action in ["deploy", "start", "restart"]:
         server.status = "running"
+        server.last_started_at = now
     elif action == "stop":
         server.status = "stopped"
+        server.last_stopped_at = now
 
     server.last_error = None
     server.updated_at = datetime.now(timezone.utc)
@@ -302,15 +481,20 @@ def delete_server(
             detail="Server not found",
         )
 
+    world = world_repository.get_active_for_server(
+        database,
+        server.id,
+    )
+
     result = run_ansible(
         action="remove",
-        game=server.game,
+        game=server.game.slug,
         server_name=server.server_name,
         port_number=server.port_number,
-        world_name=server.world_name,
-        world_size=server.world_size,
-        difficulty=server.difficulty,
-    valheim_modifier=server.valheim_modifier,
+        world_name=world.world_name if world else None,
+        world_size=world.world_size if world else None,
+        difficulty=world.difficulty if world else None,
+        valheim_modifier=( world.valheim_modifier if world else None ),
  )
 
     # Delete the database record even if the container is already missing.
@@ -321,5 +505,5 @@ def delete_server(
         "server_name": server.server_name,
         "action": "remove",
         "container_removed": result.success,
-        "cleanup_error": None if result.success else result.stderr,
+        "cleanup_error": get_cleanup_error(result),
     }

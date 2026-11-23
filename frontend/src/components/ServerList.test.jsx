@@ -66,6 +66,44 @@ describe("ServerList", () => {
     expect(screen.getByText("No servers deployed")).toBeInTheDocument();
   });
 
+  it("calls the open callback", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+
+    render(
+      <ServerList
+        servers={[
+          {
+            server_name: "minecraft-test",
+            game: "minecraft",
+            port_number: 25566,
+            status: "running",
+          },
+        ]}
+        loading={false}
+        error=""
+        onRefresh={vi.fn()}
+        onOpen={onOpen}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        onRestart={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Details",
+      })
+    );
+
+    expect(onOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        server_name: "minecraft-test",
+      })
+    );
+  });
+
   it("shows server information", () => {
     render(<ServerList {...defaultProps} />);
 

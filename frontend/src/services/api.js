@@ -55,6 +55,43 @@ export function listServers() {
   return request("/servers");
 }
 
+function serverActionPayload(server, action) {
+  return {
+    game: server.game,
+    action,
+    server_name: server.server_name,
+    port_number: server.port_number,
+    world_name: server.world_name,
+    world_size: server.world_size,
+    difficulty: server.difficulty,
+    valheim_modifier: server.valheim_modifier,
+  };
+}
+
+export function getServerMetrics(server) {
+  return request(
+    `/servers/${encodeURIComponent(server.server_name)}/metrics`
+  );
+}
+
+export function getServerPlayers(server) {
+  return request(
+    `/servers/${encodeURIComponent(server.server_name)}/players`
+  );
+}
+
+export function getServerEvents(server) {
+  return request(
+    `/servers/${encodeURIComponent(server.server_name)}/events`
+  );
+}
+
+export function getServerWorld(server) {
+  return request(
+    `/servers/${encodeURIComponent(server.server_name)}/world`
+  );
+}
+
 export function deployServer(server) {
   return request(
     `/servers/${server.server_name}/deploy`,
@@ -79,33 +116,36 @@ export function startServer(server) {
     `/servers/${server.server_name}/start`,
     {
       method: "POST",
-      body: JSON.stringify(server),
+      body: JSON.stringify(
+        serverActionPayload(server, "start")
+      ),
     },
   );
 }
-
 
 export function stopServer(server) {
   return request(
     `/servers/${server.server_name}/stop`,
     {
       method: "POST",
-      body: JSON.stringify(server),
+      body: JSON.stringify(
+        serverActionPayload(server, "stop")
+      ),
     },
   );
 }
-
 
 export function restartServer(server) {
   return request(
     `/servers/${server.server_name}/restart`,
     {
       method: "POST",
-      body: JSON.stringify(server),
+      body: JSON.stringify(
+        serverActionPayload(server, "restart")
+      ),
     },
   );
 }
-
 
 export function removeServer(server) {
   return request(

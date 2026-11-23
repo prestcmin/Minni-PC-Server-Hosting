@@ -4,14 +4,9 @@ import "./App.css";
 
 import CreateServerForm from "./components/CreateServerForm";
 import ServerList from "./components/ServerList";
+import ServerDetails from "./components/ServerDetails";
 
-import {
-  listServers,
-  removeServer,
-  restartServer,
-  startServer,
-  stopServer,
-} from "./services/api";
+import { getServerMetrics, listServers, removeServer, restartServer, startServer, stopServer, } from "./services/api";
 
 
 function Sidebar({ currentView, onNavigate }) {
@@ -53,10 +48,17 @@ function Sidebar({ currentView, onNavigate }) {
 }
 
 
-function Dashboard({ servers, onNavigate }) {
+function Dashboard({ servers, metricsByServer = {}, metricsLoading = false, onNavigate }) {
   const runningServers = servers.filter(
     (server) => server.status === "running",
   );
+  
+  const monitoredServer =
+  runningServers[0] || servers[0] || null;
+
+  const monitoredMetrics = monitoredServer
+    ? metricsByServer[monitoredServer.server_name]
+    : null;
 
   return (
     <>
@@ -98,22 +100,47 @@ function Dashboard({ servers, onNavigate }) {
         <div className="panel-header">
           <div>
             <h3>Resource usage</h3>
-            <p>Resource metrics will be connected to the backend later.</p>
+            <p>{monitoredServer
+                 ? `Monitoring ${monitoredServer.server_name}.`
+                 : "Deploy a server to view live resource usage."}
+            </p>
           </div>
 
           <span>Last 24 hours</span>
         </div>
 
-        <div className="resource-chart" aria-label="Resource usage chart">
-          <span style={{ height: "35%" }} />
-          <span style={{ height: "48%" }} />
-          <span style={{ height: "42%" }} />
-          <span style={{ height: "66%" }} />
-          <span style={{ height: "54%" }} />
-          <span style={{ height: "78%" }} />
-          <span style={{ height: "62%" }} />
-          <span style={{ height: "88%" }} />
-        </div>
+        {metricsLoading ? (
+	  <p className="loading-message">
+   	    Loading live metrics...
+  	  </p>
+	) : monitoredMetrics ? (
+	  <div className="metric-grid">
+	    <article className="metric-card">
+	      <span>CPU usage : </span>
+	      <strong>
+	        {monitoredMetrics.cpu_percent?.toFixed(1) ?? "—"}%
+	      </strong>
+	    </article>
+
+	    <article className="metric-card">
+	      <span>Memory usage : </span>
+	      <strong>
+	        {monitoredMetrics.memory_percent?.toFixed(1) ?? "—"}%
+	      </strong>
+	    </article>
+
+	    <article className="metric-card">
+	      <span>Uptime : </span>
+	      <strong>
+        	{monitoredMetrics.uptime_seconds ?? "—"}s
+      	      </strong>
+    	    </article>
+ 	 </div>
+	) : (
+	  <p className="empty-state">
+	    Metrics are unavailable for this server.
+	  </p>
+	)}
       </section>
 
       <section className="dashboard-panel">
@@ -171,6 +198,36 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeActions, setActiveActions] = useState({});
+  const [metricsByServer, setMetricsByServer] = useState({});
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [selectedServer, setSelectedServer] = useState(null);
+
+  async function loadMetrics(serverList) {
+    if (serverList.length === 0) {
+      setMetricsByServer({});
+      return;
+    }
+
+    setMetricsLoading(true);
+
+    const metricEntries = await Promise.all(
+      serverList.map(async (server) => {
+        try {
+          const metrics = await getServerMetrics(server);
+
+          return [server.server_name, metrics];
+        } catch {
+          return [server.server_name, null];
+        }
+      })
+    );
+
+    setMetricsByServer(
+      Object.fromEntries(metricEntries)
+    );
+
+    setMetricsLoading(false);
+  }
 
   async function refreshServers() {
     setError("");
@@ -179,6 +236,7 @@ function App() {
     try {
       const result = await listServers();
       setServers(result);
+      await loadMetrics(result);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -203,6 +261,41 @@ function App() {
     }
   }
 
+  async function handleAction(action, server) {
+    const actionKey = `${server.server_name}-${action}`;
+
+    setActiveActions((current) => ({
+      ...current,
+      [actionKey]: true,
+    }));
+
+    try {
+      if (action === "start") {
+        await startServer(server);
+      }
+
+      if (action === "stop") {
+        await stopServer(server);
+      }
+
+      if (action === "restart") {
+        await restartServer(server);
+      }
+
+      if (action === "remove") {
+        await removeServer(server);
+      }
+
+      await refreshServers();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setActiveActions((current) => ({
+        ...current,
+        [actionKey]: false,
+      }));
+    }
+  }
 
   async function handleRemove(server) {
     const confirmed = window.confirm(
@@ -256,6 +349,8 @@ function App() {
           {currentView === "dashboard" && (
             <Dashboard
               servers={servers}
+              metricsByServer={metricsByServer}
+              metricsLoading={metricsLoading}
               onNavigate={setCurrentView}
             />
           )}
@@ -297,6 +392,10 @@ function App() {
 		  error={error}
 		  onRefresh={refreshServers}
 		  activeActions={activeActions}
+                  onOpen={(server) => {
+                    setSelectedServer(server);
+                    setCurrentView("details");
+                  }}
 		  onStart={(server) => handleAction("start", server)}
 		  onStop={(server) => handleAction("stop", server)}
 		  onRestart={(server) => handleAction("restart", server)}
@@ -333,6 +432,16 @@ function App() {
             </>
           )}
 
+          {currentView === "details" && selectedServer && (
+            <ServerDetails
+              server={selectedServer}
+              activeActions={activeActions}
+              onAction={handleAction}
+              onRemove={handleRemove}
+              onBack={() => setCurrentView("servers")}
+            />
+          )}
+
           {currentView === "settings" && (
             <>
               <div className="page-header">
@@ -350,45 +459,6 @@ function App() {
       </div>
     </div>
   );
-}
-
-async function refreshServers() {
-  setLoading(true);
-  setError("");
-
-  try {
-    const data = await listServers();
-    setServers(data);
-  } catch (requestError) {
-    setError(requestError.message);
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function handleAction(action, server) {
-  const actionKey = `${server.server_name}-${action}`;
-
-  setActiveActions((current) => ({
-    ...current,
-    [actionKey]: true,
-  }));
-
-  try {
-    if (action === "start") await startServer(server);
-    if (action === "stop") await stopServer(server);
-    if (action === "restart") await restartServer(server);
-    if (action === "remove") await removeServer(server);
-
-    await refreshServers();
-  } catch (requestError) {
-    setError(requestError.message);
-  } finally {
-    setActiveActions((current) => ({
-      ...current,
-      [actionKey]: false,
-    }));
-  }
 }
 
 export default App;

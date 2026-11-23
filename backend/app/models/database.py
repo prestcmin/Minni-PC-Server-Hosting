@@ -73,6 +73,16 @@ class Server(Base):
         default=utc_now,
         onupdate=utc_now,
     )
+    
+    last_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    last_stopped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     game: Mapped["Game"] = relationship(
         back_populates="servers"
